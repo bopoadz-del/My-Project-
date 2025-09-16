@@ -72,7 +72,8 @@ async def google_search_files(user_id: str, query: str, folder_id: Optional[str]
     creds = await _g_creds(user_id)
     service = await asyncio.to_thread(_g_service, creds)
     base = 'trashed=false'
-    q = f"{base} and fullText contains '{query.replace('"','')}'"
+    clean_query = query.replace('"','')
+    q = f"{base} and fullText contains '{clean_query}'"
     if folder_id: q = f"'{folder_id}' in parents and {q}"
     res = await asyncio.to_thread(service.files().list,
         q=q, orderBy='modifiedTime desc', pageSize=8,
