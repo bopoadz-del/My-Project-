@@ -346,7 +346,7 @@ def run_one(sim_mode, scenario_key, duration_s, control_mode, assist, spatial_pa
         th2_all.append(sol.y[2]); w2_all.append(sol.y[3])
         if sim_mode=="3d":
             phi_all.append(sol.y[4])
-        wind_all.append(np.interp(sol.t, sol.t, v_chunk[:len(sol.t)]))
+        wind_all.append(np.interp(sol.t, t_chunk, v_chunk))
 
     t = np.concatenate(t_all)
     th1 = np.concatenate(th1_all); th2 = np.concatenate(th2_all)
