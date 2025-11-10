@@ -337,8 +337,12 @@ def run_one(sim_mode, scenario_key, duration_s, control_mode, assist, spatial_pa
             pend.dt_local = max(1e-3, (t_chunk[1]-t_chunk[0]) if len(t_chunk)>1 else 0.01)
             return eom_func(t0 + t + a, y)
 
-        sol = solve_ivp(eom_wrapper, (0, t_chunk[-1]), y, method="LSODA", max_step=0.1, rtol=1e-5, atol=1e-7)
+        sol = solve_ivp(eom_wrapper, (0, t_chunk[-1]), y, method="LSODA", max_step=0.1, rtol=1e-4, atol=1e-6)
         y = sol.y[:,-1]  # new initial
+        # Validate state is finite before continuing
+        if not np.all(np.isfinite(y)):
+            print(f"Warning: Non-finite state detected at t={a+t_chunk[-1]:.1f}s, stopping simulation")
+            break
         # collect
         t_seg = sol.t + a
         t_all.append(t_seg)
