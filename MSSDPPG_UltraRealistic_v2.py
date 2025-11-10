@@ -337,7 +337,7 @@ def run_one(sim_mode, scenario_key, duration_s, control_mode, assist, spatial_pa
             pend.dt_local = max(1e-3, (t_chunk[1]-t_chunk[0]) if len(t_chunk)>1 else 0.01)
             return eom_func(t0 + t + a, y)
 
-        sol = solve_ivp(eom_wrapper, (0, t_chunk[-1]), y, method="LSODA", max_step=0.1, rtol=1e-4, atol=1e-6)
+        sol = solve_ivp(eom_wrapper, (0, t_chunk[-1]), y, method="LSODA", max_step=0.5, rtol=1e-3, atol=1e-5)
         y = sol.y[:,-1]  # new initial
         # Validate state is finite before continuing
         if not np.all(np.isfinite(y)):
@@ -351,6 +351,12 @@ def run_one(sim_mode, scenario_key, duration_s, control_mode, assist, spatial_pa
         if sim_mode=="3d":
             phi_all.append(sol.y[4])
         wind_all.append(np.interp(sol.t, t_chunk, v_chunk))
+
+    # Check if we have any results
+    if len(t_all) == 0:
+        print("ERROR: Simulation failed to produce any results")
+        return {"P_avg_kW": 0.0, "P_peak_kW": 0.0, "E_kWh": 0.0,
+                "eta_total": 0.0, "coil_Tmax_C": 0.0, "theta_max_deg": 0.0}
 
     t = np.concatenate(t_all)
     th1 = np.concatenate(th1_all); th2 = np.concatenate(th2_all)
