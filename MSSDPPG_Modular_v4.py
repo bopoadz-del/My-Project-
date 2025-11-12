@@ -338,6 +338,9 @@ class SinglePendulum:
         self.P_loss_hist = []
         self.T_coil_hist = []
 
+        # Diagnostics
+        self.coriolis_clip_count = 0  # Track Coriolis clipping events
+
         self.v_wind = 10.0
         self.dt_local = 0.01
 
@@ -406,11 +409,15 @@ class SinglePendulum:
 
         # Bearing friction
         Tb1 = -S.bearing_mu * w1 * (1 - 0.3*((self.T_bearing - T_ambient)/50))
-        Tb2 = -S.bearing_mu * w1 * (1 - 0.3*((self.T_bearing - T_ambient)/50))
+        Tb2 = -S.bearing_mu * w2 * (1 - 0.3*((self.T_bearing - T_ambient)/50))
 
         # Coriolis coupling
         h = (S.m_lower_arm*0.5 + S.m_tip)*S.L1*S.L2*w1*w2*np.sin(th1-th2)
+        h_unclamped = h
         h = np.clip(h, -5000, 5000)
+        # Track clipping events for diagnostics
+        if abs(h_unclamped) > 5000:
+            self.coriolis_clip_count += 1
 
         # Torque sum
         T1 = T_w1 + Tg1 + Tb1 + T_em_h1 + h
@@ -609,7 +616,9 @@ def run_simulation(scenario_key, duration_h=6, n_pendulums=None, control_mode="a
     P_fw = P_fw[:min_len]
     P_rv = P_rv[:min_len]
 
-    P_total = (P_h1_total + P_h2_total + P_fw + P_rv) * S.n_pendulums / 1000.0  # kW
+    P_total = (P_h1_total + P_h2_total + P_fw + P_rv) / 1000.0  # kW
+    # NOTE: P_h1_total and P_h2_total already sum across all pendulums,
+    # so we do NOT multiply by S.n_pendulums again (was causing n² error)
 
     # Summary
     dt_mean = np.mean(np.diff(t_concat)) if len(t_concat) > 1 else 1.0
@@ -626,6 +635,40 @@ def run_simulation(scenario_key, duration_h=6, n_pendulums=None, control_mode="a
     P_h2_avg = float(np.mean(P_h2_total))
     P_fw_avg = float(np.mean(P_fw))
     P_rv_avg = float(np.mean(P_rv))
+
+    # DIAGNOSTICS: Detect potential data quality issues
+    # ===================================================
+
+    # Check Coriolis clipping frequency
+    total_clips = sum(p.coriolis_clip_count for p in system.pendulums)
+    if total_clips > 0:
+        print(f"WARNING: Coriolis term clipping detected!")
+        print(f"  Total clipping events: {total_clips}")
+        print(f"  Clipping may affect energy conservation")
+        print(f"  See Line 413-420 for clamping bounds (-5000 to +5000 Nm)")
+
+    # Check array length mismatch
+    len_pendulum = len(P_h1_total) if len(P_h1_total) > 0 else 0
+    len_ground = len(P_fw) if len(P_fw) > 0 else 0
+    if len_pendulum > len_ground and len_ground > 0:
+        ratio = len_pendulum / len_ground
+        if ratio > 100:
+            print(f"WARNING: Power history length mismatch detected!")
+            print(f"  Pendulum power samples: {len_pendulum}")
+            print(f"  Ground power samples: {len_ground}")
+            print(f"  Ratio: {ratio:.0f}:1 (>99% data discarded)")
+            print(f"  Consider synchronizing recording frequencies")
+
+    # Check gearbox energy conservation
+    # Ground shaft power should not exceed input power from all pendulums
+    P_input_hinge = P_h1_avg + P_h2_avg  # Average per pendulum
+    P_ground_total = P_fw_avg + P_rv_avg
+    if P_ground_total > P_input_hinge * 1.5:  # Allow 50% efficiency loss
+        print(f"WARNING: Ground shaft power exceeds hinge input!")
+        print(f"  Hinge avg power: {P_input_hinge:.1f} W")
+        print(f"  Ground avg power: {P_ground_total:.1f} W")
+        print(f"  Ratio: {P_ground_total/P_input_hinge:.2f}:1 (violates energy conservation)")
+        print(f"  Check gearbox implementation (Line 501)")
 
     results = {
         'n_pendulums': S.n_pendulums,
