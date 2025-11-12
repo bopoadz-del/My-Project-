@@ -415,11 +415,16 @@ class Pendulum2D:
         """Inertia matrix for two-DOF system"""
         S = self.S
         c = np.cos(th1 - th2)
+        # Moment of inertia about hinges
         I1 = (1/3)*S.m_upper_arm*S.L1**2 + S.m_middle*S.L1**2 + \
              (S.m_lower_arm+S.m_tip)*S.L1**2
         I2 = (1/3)*S.m_lower_arm*S.L2**2 + S.m_tip*S.L2**2
         C12 = (S.m_lower_arm*0.5 + S.m_tip) * S.L1*S.L2*c
-        return np.array([[I1, C12], [C12, I2]])
+
+        # Ensure numerical stability: add small damping diagonal
+        M = np.array([[I1, C12], [C12, I2]])
+        M += 1e-3 * np.eye(2)  # Small diagonal regularization
+        return M
 
     def wind_torque(self, theta, omega):
         """Wind forcing torque"""
