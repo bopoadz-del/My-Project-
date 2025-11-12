@@ -1,24 +1,75 @@
-// MSSDPPG Simulator - Main Application Logic
+// MSSDPPG Simulator - Main Application Logic (v4 Modular)
 
 // Chart instances
-let powerChart, windChart, angleChart;
+let powerBreakdownChart, powerChart, flywheelChart;
 let statusPollInterval = null;
 
-// Data storage
-const data = {
-    time: [],
-    power: [],
-    wind: [],
-    theta1: [],
-    theta2: [],
-};
+// Scenario configuration
+let scenarioConfig = {};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-    initializeCharts();
     loadScenarios();
+    initializeCharts();
     addLog('System initialized', 'info');
 });
+
+// Load Scenarios
+function loadScenarios() {
+    fetch('/api/scenarios')
+        .then(r => r.json())
+        .then(scenarios => {
+            scenarioConfig = scenarios;
+            console.log('Available scenarios:', scenarios);
+            updateScenarioInfo();
+            addLog('Scenarios loaded', 'info');
+        })
+        .catch(err => {
+            console.error('Failed to load scenarios:', err);
+            addLog('Failed to load scenarios', 'error');
+        });
+}
+
+// Update Scenario Info (when scenario changes)
+function updateScenarioInfo() {
+    const scenario = document.getElementById('scenario').value;
+    const config = scenarioConfig[scenario];
+
+    if (config) {
+        // Update n_pendulums slider range
+        const slider = document.getElementById('n_pendulums');
+        const min = config.n_pendulums_min || 1;
+        const max = config.n_pendulums_max || 48;
+        const current = parseInt(slider.value);
+
+        slider.min = min;
+        slider.max = max;
+
+        // Reset to default if current is out of range
+        if (current < min || current > max) {
+            slider.value = config.n_pendulums_default || min;
+        }
+
+        updatePendulumInfo();
+        addLog(`Scenario: ${config.display_name}`, 'info');
+    }
+}
+
+// Update Pendulum Info (when n_pendulums changes)
+function updatePendulumInfo() {
+    const n = parseInt(document.getElementById('n_pendulums').value);
+    document.getElementById('n_pendulums_display').textContent = n;
+
+    // Calculate total generators: 2 per pendulum + 2 ground (FW/RV)
+    const totalGens = 2 * n + 2;
+
+    const scenario = document.getElementById('scenario').value;
+    const config = scenarioConfig[scenario];
+    const scenarioName = config ? config.display_name : scenario;
+
+    document.getElementById('scenario_info').textContent =
+        `${n} pendulums → ${totalGens} generators (${scenarioName})`;
+}
 
 // Initialize Charts
 function initializeCharts() {
@@ -43,15 +94,45 @@ function initializeCharts() {
         }
     };
 
-    // Power Chart
+    // Power Breakdown Chart (Bar chart)
+    const breakdownCtx = document.getElementById('powerBreakdownChart').getContext('2d');
+    powerBreakdownChart = new Chart(breakdownCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Hinge 1', 'Hinge 2', 'Ground FW', 'Ground RV'],
+            datasets: [{
+                label: 'Avg Power (kW)',
+                data: [0, 0, 0, 0],
+                backgroundColor: [
+                    'rgba(78, 205, 196, 0.7)',
+                    'rgba(149, 225, 211, 0.7)',
+                    'rgba(68, 160, 141, 0.7)',
+                    'rgba(255, 107, 107, 0.7)'
+                ],
+                borderColor: [
+                    '#4ECDC4',
+                    '#95E1D3',
+                    '#44A08D',
+                    '#FF6B6B'
+                ],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            ...chartConfig,
+            indexAxis: 'y'
+        }
+    });
+
+    // Total Power Chart (Line chart)
     const powerCtx = document.getElementById('powerChart').getContext('2d');
     powerChart = new Chart(powerCtx, {
         type: 'line',
         data: {
-            labels: data.time,
+            labels: [],
             datasets: [{
-                label: 'Power (kW)',
-                data: data.power,
+                label: 'Total Power (kW)',
+                data: [],
                 borderColor: '#4ECDC4',
                 backgroundColor: 'rgba(78, 205, 196, 0.1)',
                 fill: true,
@@ -63,52 +144,32 @@ function initializeCharts() {
         options: chartConfig
     });
 
-    // Wind Chart
-    const windCtx = document.getElementById('windChart').getContext('2d');
-    windChart = new Chart(windCtx, {
+    // Flywheel RPM Chart (Dual line)
+    const flywheelCtx = document.getElementById('flywheelChart').getContext('2d');
+    flywheelChart = new Chart(flywheelCtx, {
         type: 'line',
         data: {
-            labels: data.time,
-            datasets: [{
-                label: 'Wind (m/s)',
-                data: data.wind,
-                borderColor: '#FF6B6B',
-                backgroundColor: 'rgba(255, 107, 107, 0.1)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: 0,
-                borderWidth: 2
-            }]
-        },
-        options: chartConfig
-    });
-
-    // Angle Chart
-    const angleCtx = document.getElementById('angleChart').getContext('2d');
-    angleChart = new Chart(angleCtx, {
-        type: 'line',
-        data: {
-            labels: data.time,
+            labels: [],
             datasets: [
                 {
-                    label: 'θ1 (rad)',
-                    data: data.theta1,
+                    label: 'Flywheel FW (RPM)',
+                    data: [],
                     borderColor: '#95E1D3',
                     backgroundColor: 'transparent',
                     fill: false,
                     tension: 0.4,
                     pointRadius: 0,
-                    borderWidth: 1.5
+                    borderWidth: 2
                 },
                 {
-                    label: 'θ2 (rad)',
-                    data: data.theta2,
-                    borderColor: '#AA96DA',
+                    label: 'Flywheel RV (RPM)',
+                    data: [],
+                    borderColor: '#FF6B6B',
                     backgroundColor: 'transparent',
                     fill: false,
                     tension: 0.4,
                     pointRadius: 0,
-                    borderWidth: 1.5
+                    borderWidth: 2
                 }
             ]
         },
@@ -123,30 +184,30 @@ function pollSimulationStatus() {
         .then(status => {
             updateProgress(status.progress);
 
-            if (status.frames && status.frames.length > 0) {
-                status.frames.forEach(frame => {
-                    updateFrameData(frame);
-                });
-                updateCharts();
-            }
-
             if (!status.running) {
                 // Simulation finished
                 clearInterval(statusPollInterval);
+                statusPollInterval = null;
+
                 fetch('/api/sim-result')
                     .then(r => r.json())
                     .then(result => {
-                        if (result.summary) {
+                        if (!result.error) {
                             addLog('Simulation completed!', 'info');
-                            updateStats(result.summary);
-                        } else if (result.error) {
+                            updateResultsDisplay(result);
+                        } else {
                             addLog(`Error: ${result.error}`, 'error');
                         }
+                    })
+                    .catch(err => {
+                        console.error('Result fetch error:', err);
+                        addLog('Error fetching results', 'error');
                     });
 
-                document.getElementById('runBtn').disabled = false;
-                document.getElementById('runBtn').textContent = '▶ Run Simulation';
-                document.getElementById('runBtn').classList.remove('running');
+                const runBtn = document.getElementById('runBtn');
+                runBtn.disabled = false;
+                runBtn.textContent = '▶ Run Simulation';
+                runBtn.classList.remove('running');
             }
         })
         .catch(err => {
@@ -154,38 +215,38 @@ function pollSimulationStatus() {
         });
 }
 
-// Load Scenarios
-function loadScenarios() {
-    fetch('/api/scenarios')
-        .then(r => r.json())
-        .then(scenarios => {
-            console.log('Available scenarios:', scenarios);
-        });
-}
-
 // Start Simulation
 function startSimulation() {
+    const scenario = document.getElementById('scenario').value;
+    const n_pendulums = parseInt(document.getElementById('n_pendulums').value);
+    const duration = parseInt(document.getElementById('duration').value);
+    const assist = document.getElementById('assist').value;
+
     const params = {
-        scenario: document.getElementById('scenario').value,
-        duration: document.getElementById('duration').value,
-        mode: document.getElementById('mode').value,
-        control: document.getElementById('control').value,
-        assist: document.getElementById('assist').value,
+        scenario: scenario,
+        duration: duration,
+        n_pendulums: n_pendulums,
+        assist: assist
     };
 
-    addLog(`Starting simulation: ${params.scenario} (${params.duration})`, 'info');
+    const totalGens = 2 * n_pendulums + 2;
+    addLog(`Starting simulation: ${scenario} (${n_pendulums} pendulums, ${totalGens} generators, ${duration}h)`, 'info');
 
     const runBtn = document.getElementById('runBtn');
     runBtn.disabled = true;
     runBtn.textContent = '⏳ Running...';
     runBtn.classList.add('running');
 
-    // Clear data
-    data.time = [];
-    data.power = [];
-    data.wind = [];
-    data.theta1 = [];
-    data.theta2 = [];
+    // Clear charts
+    if (powerChart) {
+        powerChart.data.labels = [];
+        powerChart.data.datasets[0].data = [];
+    }
+    if (flywheelChart) {
+        flywheelChart.data.labels = [];
+        flywheelChart.data.datasets[0].data = [];
+        flywheelChart.data.datasets[1].data = [];
+    }
 
     fetch('/api/simulate', {
         method: 'POST',
@@ -201,7 +262,7 @@ function startSimulation() {
             runBtn.classList.remove('running');
         } else {
             // Start polling for status updates
-            addLog('Polling simulation status...', 'info');
+            addLog('Simulation started, polling status...', 'info');
             statusPollInterval = setInterval(pollSimulationStatus, 500);
         }
     })
@@ -213,72 +274,34 @@ function startSimulation() {
     });
 }
 
-// Update Frame Data
-function updateFrameData(frame) {
-    const t_hours = frame.t / 3600;
-    data.time.push(t_hours.toFixed(2));
-    data.power.push((Math.random() * 5 + 2).toFixed(2)); // Placeholder
-    data.wind.push(frame.wind.toFixed(1));
-    data.theta1.push(frame.theta1.toFixed(3));
-    data.theta2.push(frame.theta2.toFixed(3));
+// Update Results Display
+function updateResultsDisplay(result) {
+    // Update stats panel
+    document.getElementById('stat_pendulums').textContent = result.n_pendulums || '--';
+    document.getElementById('stat_generators').textContent = result.total_generators || '--';
+    document.getElementById('stat_avg_power').textContent = (result.power?.total_avg_kW || 0).toFixed(2);
+    document.getElementById('stat_peak_power').textContent = (result.power?.total_peak_kW || 0).toFixed(2);
+    document.getElementById('stat_energy').textContent = (result.power?.energy_kWh || 0).toFixed(2);
+    document.getElementById('stat_temp').textContent = (result.coil_temp_max_C || 0).toFixed(1);
 
-    // Keep only last 100 points
-    const maxPoints = 100;
-    if (data.time.length > maxPoints) {
-        data.time.shift();
-        data.power.shift();
-        data.wind.shift();
-        data.theta1.shift();
-        data.theta2.shift();
+    // Update power breakdown chart
+    if (powerBreakdownChart) {
+        powerBreakdownChart.data.datasets[0].data = [
+            result.power?.hinge1_avg_kW || 0,
+            result.power?.hinge2_avg_kW || 0,
+            result.power?.ground_fw_avg_kW || 0,
+            result.power?.ground_rv_avg_kW || 0
+        ];
+        powerBreakdownChart.update('none');
     }
 
-    // Update 3D visualization
-    if (window.updateVisualization) {
-        window.updateVisualization(frame);
-    }
-}
-
-// Update Charts
-function updateCharts() {
-    if (powerChart) {
-        powerChart.data.labels = data.time;
-        powerChart.data.datasets[0].data = data.power;
-        powerChart.update('none');
-    }
-
-    if (windChart) {
-        windChart.data.labels = data.time;
-        windChart.data.datasets[0].data = data.wind;
-        windChart.update('none');
-    }
-
-    if (angleChart) {
-        angleChart.data.labels = data.time;
-        angleChart.data.datasets[0].data = data.theta1;
-        angleChart.data.datasets[1].data = data.theta2;
-        angleChart.update('none');
-    }
+    addLog(`Results: Avg ${(result.power?.total_avg_kW || 0).toFixed(2)} kW, Peak ${(result.power?.total_peak_kW || 0).toFixed(2)} kW`, 'info');
 }
 
 // Update Progress
 function updateProgress(progress) {
     document.getElementById('progressFill').style.width = progress + '%';
     document.getElementById('progressText').textContent = `${progress}% Complete`;
-}
-
-// Update Stats
-function updateStats(summary) {
-    if (summary) {
-        document.querySelectorAll('.info-panel span').forEach((el, i) => {
-            const values = [
-                summary.avg_kW?.toFixed(2) || '--',
-                summary.peak_kW?.toFixed(2) || '--',
-                summary.energy_kWh?.toFixed(2) || '--',
-                summary.coil_Tmax_C?.toFixed(1) || '--'
-            ];
-            el.textContent = values[i];
-        });
-    }
 }
 
 // Logging

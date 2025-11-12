@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MSSDPPG Simulator - 3D UI</title>
+    <title>MSSDPPG v4 Modular Simulator - 3D UI</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="container">
         <!-- Header -->
         <header class="header">
-            <h1>🌬️ MSSDPPG Simulator</h1>
+            <h1>🌬️ MSSDPPG Modular Simulator (v4)</h1>
             <p>Modularized Self-Sustained Double Pendulum Power Generator</p>
         </header>
 
@@ -21,43 +21,38 @@
 
                 <div class="control-group">
                     <label for="scenario">Scenario:</label>
-                    <select id="scenario">
+                    <select id="scenario" onchange="updateScenarioInfo()">
                         <option value="4x40ft">4×40ft Container</option>
                         <option value="1x20ft">1×20ft Container</option>
-                        <option value="tower">Tower Facade</option>
-                        <option value="mega">Mega 15m</option>
+                        <option value="tower" selected>Tower Facade</option>
                     </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="n_pendulums">Pendulums:</label>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="range" id="n_pendulums" min="1" max="48" value="8"
+                               style="flex: 1;" onchange="updatePendulumInfo()">
+                        <span id="n_pendulums_display" style="min-width: 40px; font-weight: bold; color: #4ECDC4;">8</span>
+                    </div>
+                    <p id="scenario_info" style="font-size: 11px; margin-top: 4px; color: #7a9a9f;"></p>
                 </div>
 
                 <div class="control-group">
                     <label for="duration">Duration:</label>
                     <select id="duration">
-                        <option value="6h">6 Hours</option>
-                        <option value="12h">12 Hours</option>
-                    </select>
-                </div>
-
-                <div class="control-group">
-                    <label for="mode">Simulation Mode:</label>
-                    <select id="mode">
-                        <option value="2d">2D Planar</option>
-                        <option value="3d">3D Spatial</option>
-                        <option value="dual">Dual (2D + 3D)</option>
-                    </select>
-                </div>
-
-                <div class="control-group">
-                    <label for="control">Control Mode:</label>
-                    <select id="control">
-                        <option value="lock">Lock-Release</option>
-                        <option value="pushpull">Magnetic Push-Pull</option>
+                        <option value="1">1 Hour</option>
+                        <option value="2">2 Hours</option>
+                        <option value="3">3 Hours</option>
+                        <option value="6" selected>6 Hours</option>
+                        <option value="12">12 Hours</option>
                     </select>
                 </div>
 
                 <div class="control-group">
                     <label for="assist">Assist Mode:</label>
                     <select id="assist">
-                        <option value="on">On</option>
+                        <option value="on" selected>On</option>
                         <option value="off">Off</option>
                     </select>
                 </div>
@@ -75,12 +70,14 @@
                 </div>
 
                 <div class="info-panel">
-                    <h3>Simulation Stats</h3>
+                    <h3>Simulation Results</h3>
                     <div id="stats">
-                        <p>Avg Power: <span>--</span> kW</p>
-                        <p>Peak Power: <span>--</span> kW</p>
-                        <p>Total Energy: <span>--</span> kWh</p>
-                        <p>Max Temp: <span>--</span> °C</p>
+                        <p>Pendulums: <span id="stat_pendulums">--</span></p>
+                        <p>Generators: <span id="stat_generators">--</span></p>
+                        <p>Avg Power: <span id="stat_avg_power">--</span> kW</p>
+                        <p>Peak Power: <span id="stat_peak_power">--</span> kW</p>
+                        <p>Total Energy: <span id="stat_energy">--</span> kWh</p>
+                        <p>Max Temp: <span id="stat_temp">--</span> °C</p>
                     </div>
                 </div>
             </aside>
@@ -97,21 +94,21 @@
 
             <!-- Right Panel: Real-time Plots -->
             <aside class="plot-panel">
-                <h2>Real-time Data</h2>
+                <h2>Power Breakdown</h2>
 
                 <div class="plot-container">
-                    <h3>Power Output</h3>
+                    <h3>Power by Generator Type</h3>
+                    <canvas id="powerBreakdownChart"></canvas>
+                </div>
+
+                <div class="plot-container">
+                    <h3>Total Power Output</h3>
                     <canvas id="powerChart"></canvas>
                 </div>
 
                 <div class="plot-container">
-                    <h3>Wind Speed</h3>
-                    <canvas id="windChart"></canvas>
-                </div>
-
-                <div class="plot-container">
-                    <h3>Pendulum Angles</h3>
-                    <canvas id="angleChart"></canvas>
+                    <h3>Flywheel RPM</h3>
+                    <canvas id="flywheelChart"></canvas>
                 </div>
 
                 <div class="log-panel">
