@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MSSDPPG Simulator - 3D UI</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🌬️ MSSDPPG Simulator</h1>
+            <p>Modularized Self-Sustained Double Pendulum Power Generator</p>
+        </header>
+
+        <div class="main-layout">
+            <!-- Left Panel: Controls -->
+            <aside class="control-panel">
+                <h2>Configuration</h2>
+
+                <div class="control-group">
+                    <label for="scenario">Scenario:</label>
+                    <select id="scenario">
+                        <option value="4x40ft">4×40ft Container</option>
+                        <option value="1x20ft">1×20ft Container</option>
+                        <option value="tower">Tower Facade</option>
+                        <option value="mega">Mega 15m</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="duration">Duration:</label>
+                    <select id="duration">
+                        <option value="6h">6 Hours</option>
+                        <option value="12h">12 Hours</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="mode">Simulation Mode:</label>
+                    <select id="mode">
+                        <option value="2d">2D Planar</option>
+                        <option value="3d">3D Spatial</option>
+                        <option value="dual">Dual (2D + 3D)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="control">Control Mode:</label>
+                    <select id="control">
+                        <option value="lock">Lock-Release</option>
+                        <option value="pushpull">Magnetic Push-Pull</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="assist">Assist Mode:</label>
+                    <select id="assist">
+                        <option value="on">On</option>
+                        <option value="off">Off</option>
+                    </select>
+                </div>
+
+                <button id="runBtn" class="btn-primary" onclick="startSimulation()">
+                    ▶ Run Simulation
+                </button>
+
+                <div class="progress-section">
+                    <h3>Progress</h3>
+                    <div class="progress-bar">
+                        <div id="progressFill" class="progress-fill"></div>
+                    </div>
+                    <p id="progressText">Ready</p>
+                </div>
+
+                <div class="info-panel">
+                    <h3>Simulation Stats</h3>
+                    <div id="stats">
+                        <p>Avg Power: <span>--</span> kW</p>
+                        <p>Peak Power: <span>--</span> kW</p>
+                        <p>Total Energy: <span>--</span> kWh</p>
+                        <p>Max Temp: <span>--</span> °C</p>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Center: 3D Visualization -->
+            <div class="visualization-area">
+                <div id="threejs-container" class="threejs-container"></div>
+                <div class="visualization-controls">
+                    <button onclick="resetCamera()">Reset View</button>
+                    <button onclick="toggleWireframe()">Wireframe</button>
+                    <button onclick="toggleRotation()">Auto Rotate</button>
+                </div>
+            </div>
+
+            <!-- Right Panel: Real-time Plots -->
+            <aside class="plot-panel">
+                <h2>Real-time Data</h2>
+
+                <div class="plot-container">
+                    <h3>Power Output</h3>
+                    <canvas id="powerChart"></canvas>
+                </div>
+
+                <div class="plot-container">
+                    <h3>Wind Speed</h3>
+                    <canvas id="windChart"></canvas>
+                </div>
+
+                <div class="plot-container">
+                    <h3>Pendulum Angles</h3>
+                    <canvas id="angleChart"></canvas>
+                </div>
+
+                <div class="log-panel">
+                    <h3>Activity Log</h3>
+                    <div id="logArea"></div>
+                </div>
+            </aside>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/static/app.js"></script>
+    <script src="/static/visualizer.js"></script>
+</body>
+</html>
